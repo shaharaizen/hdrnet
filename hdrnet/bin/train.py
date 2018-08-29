@@ -22,6 +22,9 @@ import os
 import setproctitle
 import tensorflow as tf
 import time
+import sys
+sys.path.insert(0,"")
+import scipy.misc
 
 import hdrnet.metrics as metrics
 
@@ -39,8 +42,9 @@ def log_hook(sess, log_fetches):
   data = sess.run(log_fetches)
   step = data['step']
   loss = data['loss']
+  opt_loss = data["real loss"]
   psnr = data['psnr']
-  log.info('Step {} | loss = {:.4f} | psnr = {:.1f} dB'.format(step, loss, psnr))
+  log.info('Step {} | loss = {:.4f} | opt_loss = {:.4f} |psnr = {:.1f} dB'.format(step, loss, opt_loss, psnr))
 
 
 def main(args, model_params, data_params):
@@ -71,7 +75,7 @@ def main(args, model_params, data_params):
         batch_size=args.batch_size, nthreads=args.data_threads,
         fliplr=args.fliplr, flipud=args.flipud, rotate=args.rotate,
         random_crop=args.random_crop, params=data_params,
-        output_resolution=args.output_resolution)
+        output_resolution=args.output_resolution, num_epochs=10)
     train_samples = train_data_pipeline.samples
 
   if args.eval_data_dir is not None:
@@ -83,7 +87,7 @@ def main(args, model_params, data_params):
           fliplr=False, flipud=False, rotate=False,
           random_crop=False, params=data_params,
           output_resolution=args.output_resolution)
-      eval_samples = train_data_pipeline.samples
+      eval_samples = eval_data_pipeline.samples
   # ---------------------------------------------------------------------------
 
   # Training graph
@@ -102,7 +106,7 @@ def main(args, model_params, data_params):
         eval_prediction = mdl.inference(
             eval_samples['lowres_input'], eval_samples['image_input'],
             model_params, is_training=False)
-      eval_psnr = metrics.psnr(eval_samples['image_output'], prediction)
+      eval_psnr = metrics.psnr(eval_samples['image_output'], eval_prediction)
 
   # Optimizer
   global_step = tf.contrib.framework.get_or_create_global_step()
@@ -146,6 +150,7 @@ def main(args, model_params, data_params):
   log_fetches = {
       "step": global_step,
       "loss": loss,
+      "real loss": opt_loss,
       "psnr": psnr}
 
   # Train config
@@ -156,6 +161,8 @@ def main(args, model_params, data_params):
       save_summaries_secs=args.summary_interval,
       save_model_secs=args.checkpoint_interval)
 
+  i = 0
+
   # Train loop
   with sv.managed_session(config=config) as sess:
     sv.loop(args.log_interval, log_hook, (sess, log_fetches))
@@ -165,7 +172,25 @@ def main(args, model_params, data_params):
         log.info("stopping supervisor")
         break
       try:
-        step, _ = sess.run([global_step, train_op])
+        print("i=",i)
+        step, _, pred, train_samp, eval_pred, eval_samp  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples])
+        if i%20 == 0:
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "network" + '.jpg',pred[0])
+
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
+          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
+        i+=1
+        # print("loss by numpy=", np.mean(np.square(train_samp['image_output']-pred)))
+        # print("loss by tf=", loss_opt)
+        # loss2 = 0
+        # for k in range(pred.shape[0]):
+        #   loss2 += np.square(np.linalg.norm(train_samp['image_output'][k]-pred[k]))
+        # loss2 /= pred.shape[0]
+        # print("loss by me=", loss2)
+
         since_eval = time.time()-last_eval
 
         if args.eval_data_dir is not None and since_eval > args.eval_interval:

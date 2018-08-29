@@ -150,7 +150,12 @@ class DataPipeline(object):
           if self.random_crop:
             inout = tf.random_crop(
                 inout, tf.stack([new_height, new_width, nchan]))
+
           else:
+            # inout = tf.image.resize_images(
+            #   inout, [new_height, new_width],
+            #   method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+
             height_offset = tf.to_int32((shape[0]-new_height)/2)
             width_offset = tf.to_int32((shape[1]-new_width)/2)
             inout = tf.image.crop_to_bounding_box(
@@ -228,6 +233,10 @@ class ImageFilesDataPipeline(DataPipeline):
     # normalize input/output
     sample = {}
     with tf.name_scope('normalize_images'):
+
+      # DEBUG: checking if the images are normalized ok
+      print("input_wl:" + str(input_wl) + ", output_wl:" + str(output_wl))
+
       im_input = tf.to_float(im_input)/input_wl
       im_output = tf.to_float(im_output)/output_wl
 

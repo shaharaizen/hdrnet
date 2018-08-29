@@ -46,7 +46,17 @@ class HDRNetCurves(object):
     with tf.variable_scope('coefficients'):
       bilateral_coeffs = cls._coefficients(lowres_input, params, is_training)
       tf.add_to_collection('bilateral_coefficients', bilateral_coeffs)
-
+      # bs = lowres_input.get_shape().as_list()[0]  # batch size
+      # grid = np.zeros((bs, 16, 16, 8, 3, 4))
+      # gradual_red = 0.6 * np.linspace(0, 1, 16)
+      # gradual_green = 0.6 * np.linspace(1, 0, 16)
+      # grid[:, :, :, :, 0, 0] = 0.4
+      # grid[:, :, :, :, 1, 1] = 0.4
+      # grid[:, :, :, :, 2, 2] = 0.4
+      # for i in range(16):
+      #   grid[:, i, :, :, 0, 3] = gradual_green[i]
+      #   grid[:, i, :, :, 1, 3] = gradual_red[i]
+      # bilateral_coeffs = tf.convert_to_tensor(grid, dtype=tf.float32)
     with tf.variable_scope('guide'):
       guide = cls._guide(fullres_input, params, is_training)
       tf.add_to_collection('guide', guide)
@@ -60,10 +70,10 @@ class HDRNetCurves(object):
 
   @classmethod
   def _coefficients(cls, input_tensor, params, is_training):
-    bs = input_tensor.get_shape().as_list()[0]
-    gd = params['luma_bins']
-    cm = params['channel_multiplier']
-    spatial_bin = params['spatial_bin']
+    bs = input_tensor.get_shape().as_list()[0]  # batch size
+    gd = params['luma_bins']  # 8- grid for the guidance channel
+    cm = params['channel_multiplier']  # 1- number of intermediate channels
+    spatial_bin = params['spatial_bin']  # 16- grid for height&width
 
     # -----------------------------------------------------------------------
     with tf.variable_scope('splat'):
@@ -87,7 +97,7 @@ class HDRNetCurves(object):
       n_global_layers = int(np.log2(spatial_bin/4))  # 4x4 at the coarsest lvl
 
       current_layer = splat_features
-      for i in range(2):
+      for i in range(2):  # shouldn't be n_global_layers???
         current_layer = conv(current_layer, 8*cm*gd, 3, stride=2,
             batch_norm=params['batch_norm'], is_training=is_training,
             scope="conv{}".format(i+1))
@@ -132,8 +142,10 @@ class HDRNetCurves(object):
                                   activation_fn=None, scope='conv1')
 
       with tf.name_scope('unroll_grid'):
+        # splits ths bsx16x16x96 tensor to 12 tensors of bsx16x16x8 and than stacks them, so the result is bsx16x16x8x12
         current_layer = tf.stack(
             tf.split(current_layer, cls.n_out()*cls.n_in(), axis=3), axis=4)
+        # splits the bsx16x16x8x12 to 4 tensors of bsx16x16x8x3 and then stacks them to bsx16x16x8x3x4
         current_layer = tf.stack(
             tf.split(current_layer, cls.n_in(), axis=4), axis=5)
       tf.add_to_collection('packed_coefficients', current_layer)
@@ -165,6 +177,7 @@ class HDRNetCurves(object):
       shifts_ = shifts_[np.newaxis, np.newaxis, np.newaxis, :]
       shifts_ = np.tile(shifts_, (1, 1, nchans, 1))
 
+      # adds 4th dim of 1
       guidemap = tf.expand_dims(guidemap, 4)
       shifts = tf.get_variable('shifts', dtype=tf.float32, initializer=shifts_)
 
@@ -174,6 +187,7 @@ class HDRNetCurves(object):
 
       guidemap = tf.reduce_sum(slopes*tf.nn.relu(guidemap-shifts), reduction_indices=[4])
 
+    # reducing to 1 channel
     guidemap = tf.contrib.layers.convolution2d(
         inputs=guidemap,
         num_outputs=1, kernel_size=1, 

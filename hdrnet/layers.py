@@ -143,6 +143,7 @@ def bilateral_slice_apply(grid, guide, input_image, has_offset=True, name=None):
     if len(gridshape) == 6:
       gs = tf.shape(grid)
       _, _, _, _, n_out, n_in = gridshape
+      # shape of the gris: from bsx16x16x8x4x3 to bsx16x16x8x12
       grid = tf.reshape(grid, tf.stack([gs[0], gs[1], gs[2], gs[3], gs[4]*gs[5]]))
       # grid = tf.concat(tf.unstack(grid, None, axis=5), 4)
 
