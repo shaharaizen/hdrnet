@@ -175,13 +175,16 @@ def main(args, model_params, data_params):
         print("i=",i)
         step, _, pred, train_samp, eval_pred, eval_samp  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples])
         if i%20 == 0:
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/predictions/" + str(i) + "network" + '.jpg',pred[0])
-
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
-          scipy.misc.imsave("/skydive/Junkyard/shahar/lightroom/eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
+          if not os.path.isdir("predictions"):
+            os.makedirs("predictions")
+          scipy.misc.imsave("predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
+          scipy.misc.imsave("predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
+          scipy.misc.imsave("predictions/" + str(i) + "network" + '.jpg',pred[0])
+          if not os.path.isdir("eval_predictions"):
+            os.makedirs("eval_predictions")
+          scipy.misc.imsave("eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
+          scipy.misc.imsave("eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
+          scipy.misc.imsave("eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
         i+=1
         # print("loss by numpy=", np.mean(np.square(train_samp['image_output']-pred)))
         # print("loss by tf=", loss_opt)
@@ -221,6 +224,10 @@ def main(args, model_params, data_params):
 
 
 if __name__ == '__main__':
+
+  if not os.path.isdir("checkpoint"):
+    os.makedirs("checkpoint")
+
   parser = argparse.ArgumentParser()
 
   # pylint: disable=line-too-long
