@@ -75,7 +75,7 @@ def main(args, model_params, data_params):
         batch_size=args.batch_size, nthreads=args.data_threads,
         fliplr=args.fliplr, flipud=args.flipud, rotate=args.rotate,
         random_crop=args.random_crop, params=data_params,
-        output_resolution=args.output_resolution, num_epochs=10)
+        output_resolution=args.output_resolution, num_epochs=4000)
     train_samples = train_data_pipeline.samples
 
   if args.eval_data_dir is not None:
@@ -175,16 +175,16 @@ def main(args, model_params, data_params):
         print("i=",i)
         step, _, pred, train_samp, eval_pred, eval_samp  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples])
         if i%20 == 0:
-          if not os.path.isdir("predictions"):
-            os.makedirs("predictions")
-          scipy.misc.imsave("predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
-          scipy.misc.imsave("predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
-          scipy.misc.imsave("predictions/" + str(i) + "network" + '.jpg',pred[0])
-          if not os.path.isdir("eval_predictions"):
-            os.makedirs("eval_predictions")
-          scipy.misc.imsave("eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
-          scipy.misc.imsave("eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
-          scipy.misc.imsave("eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
+          # if not os.path.isdir("predictions"):
+          #   os.makedirs("predictions")
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "network" + '.jpg',pred[0])
+          # if not os.path.isdir("eval_predictions"):
+          #   os.makedirs("eval_predictions")
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
+          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
         i+=1
         # print("loss by numpy=", np.mean(np.square(train_samp['image_output']-pred)))
         # print("loss by tf=", loss_opt)
