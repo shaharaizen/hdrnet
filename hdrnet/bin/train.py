@@ -75,7 +75,7 @@ def main(args, model_params, data_params):
         batch_size=args.batch_size, nthreads=args.data_threads,
         fliplr=args.fliplr, flipud=args.flipud, rotate=args.rotate,
         random_crop=args.random_crop, params=data_params,
-        output_resolution=args.output_resolution, num_epochs=4000)
+        output_resolution=args.output_resolution, num_epochs=args.num_epochs)
     train_samples = train_data_pipeline.samples
 
   if args.eval_data_dir is not None:
@@ -161,7 +161,7 @@ def main(args, model_params, data_params):
       save_summaries_secs=args.summary_interval,
       save_model_secs=args.checkpoint_interval)
 
-  i = 0
+  i = args.loop_counter
 
   # Train loop
   with sv.managed_session(config=config) as sess:
@@ -174,17 +174,17 @@ def main(args, model_params, data_params):
       try:
         print("i=",i)
         step, _, pred, train_samp, eval_pred, eval_samp  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples])
-        if i%20 == 0:
+        if i % args.pred_interval == 0:
           # if not os.path.isdir("predictions"):
           #   os.makedirs("predictions")
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "after" + '.jpg',train_samp['image_output'][0])
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/predictions/" + str(i) + "network" + '.jpg',pred[0])
+          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
+          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',train_samp['image_output'][0])
+          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg',pred[0])
           # if not os.path.isdir("eval_predictions"):
           #   os.makedirs("eval_predictions")
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
-          scipy.misc.imsave("/output/shahar/ImageEnhancement/lightroom_pointwise/eval_predictions/" + str(i) + "network" + '.jpg', eval_pred[0])
+          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
+          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
+          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
         i+=1
         # print("loss by numpy=", np.mean(np.square(train_samp['image_output']-pred)))
         # print("loss by tf=", loss_opt)
@@ -245,6 +245,10 @@ if __name__ == '__main__':
   train_grp.add_argument('--summary_interval', type=int, default=120, help='interval between tensorboard summaries (in s)')
   train_grp.add_argument('--checkpoint_interval', type=int, default=600, help='interval between model checkpoints (in s)')
   train_grp.add_argument('--eval_interval', type=int, default=3600, help='interval between evaluations (in s)')
+  train_grp.add_argument('--train_pred_dir', default=None, type=str, help='directory to save the train predictions.')
+  train_grp.add_argument('--eval_pred_dir', default=None, type=str, help='directory to save the validation predictions.')
+  train_grp.add_argument('--loop_counter', default=0, type=int, help='number to initialize the loop counter.')
+  train_grp.add_argument('--pred_interval', default=20, type=int, help='interval of saving predictions.')
 
   # Debug and perf profiling
   debug_grp = parser.add_argument_group('debug and profiling')
@@ -274,6 +278,7 @@ if __name__ == '__main__':
   model_grp.add_argument('--nobatch_norm', dest='batch_norm', action='store_false')
   model_grp.add_argument('--channel_multiplier', default=1, type=int,  help='Factor to control net throughput (number of intermediate channels).')
   model_grp.add_argument('--guide_complexity', default=16, type=int,  help='Control complexity of the guide network.')
+  model_grp.add_argument('--num_epochs', default=None, type=int, help='number of epochs')
 
   # Bilateral grid parameters
   model_grp.add_argument('--luma_bins', default=8, type=int,  help='Number of BGU bins for the luminance.')
