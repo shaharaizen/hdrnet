@@ -24,6 +24,7 @@ __all__ = [
   'HDRNetCurves',
   'HDRNetPointwiseNNGuide',
   'HDRNetGaussianPyrNN',
+  'HDRNetLaplacianPyrNN',
 ]
 
 
@@ -303,3 +304,90 @@ class HDRNetGaussianPyrNN(HDRNetPointwiseNNGuide):
     return current
 
 
+class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
+  """Replace input to the affine model by a pyramid
+  """
+  @classmethod
+  def n_scales(cls):
+    return 3
+
+  @classmethod
+  def n_out(cls):
+    return 3*cls.n_scales()
+
+  @classmethod
+  def n_in(cls):
+    return 3+1
+
+  @classmethod
+  def inference(cls, lowres_input, fullres_input, params,
+                is_training=False):
+
+    with tf.variable_scope('coefficients'):
+      bilateral_coeffs = cls._coefficients(lowres_input, params, is_training)
+      tf.add_to_collection('bilateral_coefficients', bilateral_coeffs)
+
+    with tf.variable_scope('multiscale'):
+      multiscale = cls._multifreq_input(fullres_input)
+      for m in multiscale:
+        tf.add_to_collection('multiscale', m)
+
+    with tf.variable_scope('guide'):
+      guide = cls._guide(multiscale, params, is_training)
+      for g in guide:
+        tf.add_to_collection('guide', g)
+
+    with tf.variable_scope('output'):
+      output = cls._output(multiscale, guide, bilateral_coeffs)
+      tf.add_to_collection('output', output)
+
+    return output
+
+  @classmethod
+  def _multifreq_input(cls, fullres_input):
+    full_sz = tf.shape(fullres_input)[1:3]
+    sz = full_sz
+
+    current_level = fullres_input
+    lvls = [current_level]
+    for lvl in range(cls.n_scales()-1):
+      sz = sz / 2
+      current_level = tf.image.resize_images(
+          current_level, sz, tf.image.ResizeMethod.BILINEAR,
+          align_corners=True)
+      current_level_big = tf.image.resize_images(
+          current_level, full_sz, tf.image.ResizeMethod.BILINEAR,
+          align_corners=True)
+      lvls.append(current_level_big)
+
+    freqs = []
+    for i, lvl in enumerate(lvls):
+      if i ==len(lvls) - 1:
+        freqs.append(lvl)
+      else:
+        freqs.append(lvl - lvls[i+1])
+    return freqs
+
+  @classmethod
+  def _guide(cls, multiscale, params, is_training):
+    guide_lvls = []
+    for il, lvl in enumerate(multiscale):
+      with tf.variable_scope('level_{}'.format(il)):
+        guide_lvl = HDRNetPointwiseNNGuide._guide(lvl, params, is_training)
+      guide_lvls.append(guide_lvl)
+    return guide_lvls
+
+  @classmethod
+  def _output(cls, lvls, guide_lvls, coeffs):
+    for il, (lvl, guide_lvl) in enumerate(reversed(zip(lvls, guide_lvls))):
+      c = coeffs[:, :, :, :, il*3:(il+1)*3, :]
+      out_lvl = HDRNetPointwiseNNGuide._output(lvl, guide_lvl, c)
+
+      if il == 0:
+        current = out_lvl
+      else:
+        sz = tf.shape(out_lvl)[1:3]
+        current = tf.image.resize_images(current, sz, tf.image.ResizeMethod.BILINEAR, align_corners=True)
+        current = tf.add(current, out_lvl)
+
+    return current
