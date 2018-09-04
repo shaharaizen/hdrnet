@@ -27,6 +27,9 @@ __all__ = [
   'HDRNetLaplacianPyrNN',
 ]
 
+__subs__ = ['HDRNetCurves',
+  'HDRNetPointwiseNNGuide',]
+
 
 class HDRNetCurves(object):
   """Main model, as submitted in January 2017.

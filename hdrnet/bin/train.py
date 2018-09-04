@@ -44,10 +44,12 @@ def log_hook(sess, log_fetches):
   loss = data['loss']
   opt_loss = data["real loss"]
   psnr = data['psnr']
-  log.info('Step {} | loss = {:.4f} | opt_loss = {:.4f} |psnr = {:.1f} dB'.format(step, loss, opt_loss, psnr))
+  opt_psnr = data['real psnr']
+  log.info('Step {} | loss = {:.4f} | opt_loss = {:.4f} | psnr = {:.1f} dB | opt_psnr = {:.1f} dB'.format(step, loss, opt_loss, psnr, opt_psnr))
 
 
 def main(args, model_params, data_params):
+  log_file = open(args.checkpoint_dir + '/log_file.txt', "a")
   procname = os.path.basename(args.checkpoint_dir)
   setproctitle.setproctitle('hdrnet_{}'.format(procname))
 
@@ -107,6 +109,7 @@ def main(args, model_params, data_params):
             eval_samples['lowres_input'], eval_samples['image_input'],
             model_params, is_training=False)
       eval_psnr = metrics.psnr(eval_samples['image_output'], eval_prediction)
+      eval_loss = metrics.l2_loss(eval_samples['image_output'], eval_prediction)
 
   # Optimizer
   global_step = tf.contrib.framework.get_or_create_global_step()
@@ -124,6 +127,7 @@ def main(args, model_params, data_params):
     else:
       print "No regularization."
       opt_loss = loss
+    opt_psnr = psnr
 
     with tf.control_dependencies([updates]):
       opt = tf.train.AdamOptimizer(args.learning_rate)
@@ -151,7 +155,8 @@ def main(args, model_params, data_params):
       "step": global_step,
       "loss": loss,
       "real loss": opt_loss,
-      "psnr": psnr}
+      "psnr": psnr,
+      "real psnr" : opt_psnr}
 
   # Train config
   config = tf.ConfigProto()
@@ -173,42 +178,44 @@ def main(args, model_params, data_params):
         break
       try:
         print("i=",i)
-        step, _, pred, train_samp, eval_pred, eval_samp  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples])
+        step, _, pred, train_samp, eval_pred, eval_samp, train_loss, train_psnr  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples, opt_loss, opt_psnr])
         if i % args.pred_interval == 0:
-          # if not os.path.isdir("predictions"):
-          #   os.makedirs("predictions")
+          if not os.path.isdir(args.train_pred_dir):
+            os.makedirs("predictions")
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',train_samp['image_output'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg',pred[0])
-          # if not os.path.isdir("eval_predictions"):
-          #   os.makedirs("eval_predictions")
+          if not os.path.isdir(args.eval_pred_dir):
+            os.makedirs("eval_predictions")
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
+
+          log_file.write('train psnr on step ' + str(i) + ': ' + str(train_psnr) + '\n')
+          log_file.write('train loss on step ' + str(i) + ': ' + str(train_loss) + '\n')
         i+=1
-        # print("loss by numpy=", np.mean(np.square(train_samp['image_output']-pred)))
-        # print("loss by tf=", loss_opt)
-        # loss2 = 0
-        # for k in range(pred.shape[0]):
-        #   loss2 += np.square(np.linalg.norm(train_samp['image_output'][k]-pred[k]))
-        # loss2 /= pred.shape[0]
-        # print("loss by me=", loss2)
 
         since_eval = time.time()-last_eval
 
-        if args.eval_data_dir is not None and since_eval > args.eval_interval:
+        if args.eval_data_dir is not None and i % args.eval_interval == 0:# since_eval > args.eval_interval:
           log.info("Evaluating on {} images at step {}".format(
               eval_data_pipeline.nsamples, step))
 
           p_ = 0
+          l_ = 0
           for it in range(eval_data_pipeline.nsamples):
             p_ += sess.run(eval_psnr)
+            l_ += sess.run(eval_loss)
           p_ /= eval_data_pipeline.nsamples
+
+          log_file.write('eval psnr on step ' + str(i) + ': ' + str(p_) + '\n')
+          log_file.write('eval loss on step ' + str(i) + ': ' + str(l_) + '\n')
 
           sv.summary_writer.add_summary(tf.Summary(value=[
             tf.Summary.Value(tag="psnr/eval", simple_value=p_)]), global_step=step)
 
           log.info("  Evaluation PSNR = {:.1f} dB".format(p_))
+          log.info("  Evaluation loss = {:.1f} dB".format(l_))
 
           last_eval = time.time()
 
@@ -218,6 +225,8 @@ def main(args, model_params, data_params):
       except KeyboardInterrupt:
         break
     chkpt_path = os.path.join(args.checkpoint_dir, 'on_stop.ckpt')
+    log_file.write("number of steps: " + str(i))
+    log_file.close()
     log.info("Training complete, saving chkpt {}".format(chkpt_path))
     sv.saver.save(sess, chkpt_path)
     sv.request_stop()
@@ -271,6 +280,8 @@ if __name__ == '__main__':
   # Model parameters
   model_grp = parser.add_argument_group('model_params')
   model_grp.add_argument('--model_name', default=models.__all__[0], type=str, help='classname of the model to use.', choices=models.__all__)
+  model_grp.add_argument('--sub_model_name', default=models.__subs__[1], type=str, help='classname of the model to use.', choices=models.__subs__)
+  model_grp.add_argument('--n_scale', default=3, type=int, help='number of scale to a pyramid')
   model_grp.add_argument('--data_pipeline', default='ImageFilesDataPipeline', help='classname of the data pipeline to use.', choices=dp.__all__)
   model_grp.add_argument('--net_input_size', default=256, type=int, help="size of the network's lowres image input.")
   model_grp.add_argument('--output_resolution', default=[512, 512], type=int, nargs=2, help='resolution of the output image.')
