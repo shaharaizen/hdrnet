@@ -190,8 +190,8 @@ def main(args, model_params, data_params):
           if not os.path.isdir(args.eval_pred_dir):
             os.makedirs(args.eval_pred_dir)
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
-          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
-          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
+          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
+          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
 
           log_file.write('train psnr on step ' + str(i) + ': ' + str(train_psnr) + '\n')
           log_file.write('train loss on step ' + str(i) + ': ' + str(train_loss) + '\n')
