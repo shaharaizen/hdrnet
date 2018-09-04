@@ -49,6 +49,8 @@ def log_hook(sess, log_fetches):
 
 
 def main(args, model_params, data_params):
+  if not os.path.isdir(args.checkpoint_dir):
+    os.makedirs(args.checkpoint_dir)
   log_file = open(args.checkpoint_dir + '/log_file.txt', "a")
   procname = os.path.basename(args.checkpoint_dir)
   setproctitle.setproctitle('hdrnet_{}'.format(procname))
@@ -120,12 +122,12 @@ def main(args, model_params, data_params):
 
     reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
     if reg_losses and args.weight_decay is not None and args.weight_decay > 0:
-      print "Regularization losses:"
+      print ("Regularization losses:")
       for rl in reg_losses:
-        print " ", rl.name
+        print (" ", rl.name)
       opt_loss = loss + args.weight_decay*sum(reg_losses)
     else:
-      print "No regularization."
+      print ("No regularization.")
       opt_loss = loss
     opt_psnr = psnr
 
@@ -181,12 +183,12 @@ def main(args, model_params, data_params):
         step, _, pred, train_samp, eval_pred, eval_samp, train_loss, train_psnr  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples, opt_loss, opt_psnr])
         if i % args.pred_interval == 0:
           if not os.path.isdir(args.train_pred_dir):
-            os.makedirs("predictions")
+            os.makedirs(args.train_pred_dir)
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',train_samp['image_output'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg',pred[0])
           if not os.path.isdir(args.eval_pred_dir):
-            os.makedirs("eval_predictions")
+            os.makedirs(args.eval_pred_dir)
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
