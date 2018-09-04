@@ -312,7 +312,7 @@ class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
   """
   @classmethod
   def n_scales(cls):
-    return 3
+    return 4
 
   @classmethod
   def n_out(cls):
