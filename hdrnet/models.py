@@ -287,7 +287,7 @@ class HDRNetGaussianPyrNN(HDRNetPointwiseNNGuide):
     guide_lvls = []
     for il, lvl in enumerate(multiscale):
       with tf.variable_scope('level_{}'.format(il)):
-        guide_lvl = HDRNetPointwiseNNGuide._guide(lvl, params, is_training)
+        guide_lvl = HDRNetCurves._guide(lvl, params, is_training)
       guide_lvls.append(guide_lvl)
     return guide_lvls
 
@@ -295,7 +295,7 @@ class HDRNetGaussianPyrNN(HDRNetPointwiseNNGuide):
   def _output(cls, lvls, guide_lvls, coeffs):
     for il, (lvl, guide_lvl) in enumerate(reversed(zip(lvls, guide_lvls))):
       c = coeffs[:, :, :, :, il*3:(il+1)*3, :]
-      out_lvl = HDRNetPointwiseNNGuide._output(lvl, guide_lvl, c)
+      out_lvl = HDRNetCurves._output(lvl, guide_lvl, c)
 
       if il == 0:
         current = out_lvl
@@ -376,7 +376,7 @@ class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
     guide_lvls = []
     for il, lvl in enumerate(multiscale):
       with tf.variable_scope('level_{}'.format(il)):
-        guide_lvl = HDRNetPointwiseNNGuide._guide(lvl, params, is_training)
+        guide_lvl = HDRNetCurves._guide(lvl, params, is_training)
       guide_lvls.append(guide_lvl)
     return guide_lvls
 
@@ -384,7 +384,7 @@ class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
   def _output(cls, lvls, guide_lvls, coeffs):
     for il, (lvl, guide_lvl) in enumerate(reversed(zip(lvls, guide_lvls))):
       c = coeffs[:, :, :, :, il*3:(il+1)*3, :]
-      out_lvl = HDRNetPointwiseNNGuide._output(lvl, guide_lvl, c)
+      out_lvl = HDRNetCurves._output(lvl, guide_lvl, c)
 
       if il == 0:
         current = out_lvl
