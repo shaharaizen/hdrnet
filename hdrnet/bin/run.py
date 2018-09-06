@@ -27,6 +27,7 @@ import skimage
 import skimage.io
 import skimage.transform
 import sys
+sys.path.insert(0,"")
 import time
 import tensorflow as tf
 
