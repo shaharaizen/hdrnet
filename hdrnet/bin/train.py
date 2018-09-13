@@ -179,20 +179,27 @@ def main(args, model_params, data_params):
         log.info("stopping supervisor")
         break
       try:
-        print("i=",i)
+        print("loop=",i)
         step, _, pred, train_samp, eval_pred, eval_samp, train_loss, train_psnr  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples, opt_loss, opt_psnr])
+
+        # saving the predictions
         if i % args.pred_interval == 0:
+          # saving train predictions
           if not os.path.isdir(args.train_pred_dir):
             os.makedirs(args.train_pred_dir)
+
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',train_samp['image_output'][0])
           scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg',pred[0])
+
+          # saving evaluation predisctions
           if not os.path.isdir(args.eval_pred_dir):
             os.makedirs(args.eval_pred_dir)
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
           scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
 
+          # writing the train metrics to the log file
           log_file.write('train psnr on step ' + str(i) + ': ' + str(train_psnr) + '\n')
           log_file.write('train loss on step ' + str(i) + ': ' + str(train_loss) + '\n')
         i+=1
@@ -209,7 +216,9 @@ def main(args, model_params, data_params):
             p_ += sess.run(eval_psnr)
             l_ += sess.run(eval_loss)
           p_ /= eval_data_pipeline.nsamples
+          l_ /= eval_data_pipeline.nsamples
 
+          # writing the evaluation metrics to the log file
           log_file.write('eval psnr on step ' + str(i) + ': ' + str(p_) + '\n')
           log_file.write('eval loss on step ' + str(i) + ': ' + str(l_) + '\n')
 
@@ -226,6 +235,8 @@ def main(args, model_params, data_params):
         break
       except KeyboardInterrupt:
         break
+
+    # saving checkpoint and closing log file
     chkpt_path = os.path.join(args.checkpoint_dir, 'on_stop.ckpt')
     log_file.write("number of steps: " + str(i))
     log_file.close()
@@ -255,7 +266,7 @@ if __name__ == '__main__':
   train_grp.add_argument('--log_interval', type=int, default=1, help='interval between log messages (in s).')
   train_grp.add_argument('--summary_interval', type=int, default=120, help='interval between tensorboard summaries (in s)')
   train_grp.add_argument('--checkpoint_interval', type=int, default=600, help='interval between model checkpoints (in s)')
-  train_grp.add_argument('--eval_interval', type=int, default=3600, help='interval between evaluations (in s)')
+  train_grp.add_argument('--eval_interval', type=int, default=3600, help='interval between evaluations (in number of batches)')
   train_grp.add_argument('--train_pred_dir', default=None, type=str, help='directory to save the train predictions.')
   train_grp.add_argument('--eval_pred_dir', default=None, type=str, help='directory to save the validation predictions.')
   train_grp.add_argument('--loop_counter', default=0, type=int, help='number to initialize the loop counter.')
@@ -282,8 +293,6 @@ if __name__ == '__main__':
   # Model parameters
   model_grp = parser.add_argument_group('model_params')
   model_grp.add_argument('--model_name', default=models.__all__[0], type=str, help='classname of the model to use.', choices=models.__all__)
-  model_grp.add_argument('--sub_model_name', default=models.__subs__[1], type=str, help='classname of the model to use.', choices=models.__subs__)
-  model_grp.add_argument('--n_scale', default=3, type=int, help='number of scale to a pyramid')
   model_grp.add_argument('--data_pipeline', default='ImageFilesDataPipeline', help='classname of the data pipeline to use.', choices=dp.__all__)
   model_grp.add_argument('--net_input_size', default=256, type=int, help="size of the network's lowres image input.")
   model_grp.add_argument('--output_resolution', default=[512, 512], type=int, nargs=2, help='resolution of the output image.')

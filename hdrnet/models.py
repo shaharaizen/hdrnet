@@ -52,17 +52,7 @@ class HDRNetCurves(object):
     with tf.variable_scope('coefficients'):
       bilateral_coeffs = cls._coefficients(lowres_input, params, is_training)
       tf.add_to_collection('bilateral_coefficients', bilateral_coeffs)
-      # bs = lowres_input.get_shape().as_list()[0]  # batch size
-      # grid = np.zeros((bs, 16, 16, 8, 3, 4))
-      # gradual_red = 0.6 * np.linspace(0, 1, 16)
-      # gradual_green = 0.6 * np.linspace(1, 0, 16)
-      # grid[:, :, :, :, 0, 0] = 0.4
-      # grid[:, :, :, :, 1, 1] = 0.4
-      # grid[:, :, :, :, 2, 2] = 0.4
-      # for i in range(16):
-      #   grid[:, i, :, :, 0, 3] = gradual_green[i]
-      #   grid[:, i, :, :, 1, 3] = gradual_red[i]
-      # bilateral_coeffs = tf.convert_to_tensor(grid, dtype=tf.float32)
+
     with tf.variable_scope('guide'):
       guide = cls._guide(fullres_input, params, is_training)
       tf.add_to_collection('guide', guide)
@@ -231,7 +221,7 @@ class HDRNetPointwiseNNGuide(HDRNetCurves):
 
 
 class HDRNetGaussianPyrNN(HDRNetPointwiseNNGuide):
-  """Replace input to the affine model by a gaussian pyramid, having it's base model a HDRNetPointwiseNNGuide
+  """Replace input to the affine model by a gaussian pyramid, with HDRNetPointwiseNNGuide as a base guide
   """
   @classmethod
   def n_scales(cls):
@@ -309,7 +299,7 @@ class HDRNetGaussianPyrNN(HDRNetPointwiseNNGuide):
     return current
 
 class HDRNetGaussianCurvePyrNN(HDRNetCurves):
-  """Replace input to the affine model by a gaussian pyramid, having it's base model a HDRNetCurves
+  """Replace input to the affine model by a gaussian pyramid, with HDRNetCurves as a base guide
   """
   @classmethod
   def n_scales(cls):
@@ -387,7 +377,7 @@ class HDRNetGaussianCurvePyrNN(HDRNetCurves):
     return current
 
 class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
-  """Replace input to the affine model by a laplacian pyramid, having it's base model a HDRNetPointwiseNNGuide
+  """Replace input to the affine model by a laplacian pyramid, with HDRNetPointwiseNNGuide as a base guide
   """
   @classmethod
   def n_scales(cls):
@@ -475,7 +465,7 @@ class HDRNetLaplacianPyrNN(HDRNetPointwiseNNGuide):
     return current
 
 class HDRNetLaplacianCurvePyrNN(HDRNetCurves):
-  """Replace input to the affine model by a laplacian pyramid, having it's base model a HDRNetCurves
+  """Replace input to the affine model by a laplacian pyramid,with HDRNetCurves as a base guide
   """
   @classmethod
   def n_scales(cls):
