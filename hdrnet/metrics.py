@@ -21,7 +21,7 @@ def total_loss(target, prediction, name=None):
   """
   calculates the total loss: a combination of the l2 loss and l2 loss of the magnitudes
   """
-  return l2_loss(target, prediction, name) + 0.1 * gradient_loss(target, prediction, name)
+  return tf.add(l2_loss(target, prediction, name), 0.1 * gradient_loss(target, prediction, name))
 
 def l2_loss(target, prediction, name=None):
   with tf.name_scope(name, default_name='l2_loss', values=[target, prediction]):
@@ -47,7 +47,7 @@ def calc_gradient(img):
   x_grad = (img_left - img_right)[:,:,1:]
   y_grad = (img_up - img_down)[:,1:,:]
 
-  magnitude = tf.sqrt(tf.square(x_grad) + tf.square(y_grad))
+  magnitude = tf.sqrt(tf.square(x_grad) + tf.square(y_grad) + 0.00000000001)
 
   return magnitude
 
