@@ -100,7 +100,7 @@ def main(args, model_params, data_params):
       prediction = mdl.inference(
           train_samples['lowres_input'], train_samples['image_input'],
           model_params, is_training=True)
-    loss = metrics.l2_loss(train_samples['image_output'], prediction)
+    loss = metrics.total_loss(train_samples['image_output'], prediction)
     psnr = metrics.psnr(train_samples['image_output'], prediction)
 
   # Evaluation graph
@@ -111,7 +111,7 @@ def main(args, model_params, data_params):
             eval_samples['lowres_input'], eval_samples['image_input'],
             model_params, is_training=False)
       eval_psnr = metrics.psnr(eval_samples['image_output'], eval_prediction)
-      eval_loss = metrics.l2_loss(eval_samples['image_output'], eval_prediction)
+      eval_loss = metrics.total_loss(eval_samples['image_output'], eval_prediction)
 
   # Optimizer
   global_step = tf.contrib.framework.get_or_create_global_step()

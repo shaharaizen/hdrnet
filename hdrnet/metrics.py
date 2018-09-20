@@ -17,12 +17,39 @@ import tensorflow as tf
 
 import numpy as np
 
+def total_loss(target, prediction, name=None):
+  """
+  calculates the total loss: a combination of the l2 loss and l2 loss of the magnitudes
+  """
+  return l2_loss(target, prediction, name) + 0.1 * gradient_loss(target, prediction, name)
 
 def l2_loss(target, prediction, name=None):
   with tf.name_scope(name, default_name='l2_loss', values=[target, prediction]):
     loss = tf.reduce_mean(tf.square(target-prediction))
   return loss
 
+def gradient_loss(target, prediction,name=None):
+  """
+  calculates l2 loss between the magnitudes
+  """
+  with tf.name_scope(name, default_name='gradient_loss', values=[target, prediction]):
+    loss = l2_loss(calc_gradient(target), calc_gradient(prediction))
+  return loss
+
+def calc_gradient(img):
+  """
+  calculates the magnitude of the image
+  """
+  img_left = img[:,:-1,:]
+  img_right = img[:, 1:, :]
+  img_up = img[:,:, :-1]
+  img_down = img[:,:, 1:]
+  x_grad = (img_left - img_right)[:,:,1:]
+  y_grad = (img_up - img_down)[:,1:,:]
+
+  magnitude = tf.sqrt(tf.square(x_grad) + tf.square(y_grad))
+
+  return magnitude
 
 def psnr(target, prediction, name=None):
   with tf.name_scope(name, default_name='psnr_op', values=[target, prediction]):
