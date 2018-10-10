@@ -26,10 +26,12 @@ import setproctitle
 import skimage
 import skimage.io
 import skimage.transform
-import sys
-sys.path.insert(0,"")
 import time
 import tensorflow as tf
+
+# fixing the path
+import sys
+sys.path.insert(0,"")
 
 import hdrnet.models as models
 import hdrnet.utils as utils
@@ -42,17 +44,22 @@ log.setLevel(logging.INFO)
 
 def get_input_list(path):
   regex = re.compile(".*.(png|jpeg|jpg|tif|tiff)")
+
+  # if the path is the input folder
   if os.path.isdir(path):
     inputs = os.listdir(path)
     inputs = [os.path.join(path, f) for f in inputs if regex.match(f)]
     log.info("Directory input {}, with {} images".format(path, len(inputs)))
 
+  # if the path is to filelist.txt with the names of the input images
   elif os.path.splitext(path)[-1] == ".txt":
     dirname = os.path.dirname(path)
     with open(path, 'r') as fid:
       inputs = [l.strip() for l in fid.readlines()]
     inputs = [os.path.join(dirname, 'input', im) for im in inputs]
     log.info("Filelist input {}, with {} images".format(path, len(inputs)))
+
+  # if the path is a single file
   elif regex.match(path):
     inputs = [path]
     log.info("Single input {}".format(path))
@@ -81,7 +88,7 @@ def main(args):
 
   # -------- Setup graph ----------------------------------------------------
   if not hasattr(models, model_params['model_name']):
-    log.error("Model {} does not exist".format(params.model_name))
+    log.error("Model {} does not exist".format(model_params.model_name))
     return
   mdl = getattr(models, model_params['model_name'])
 
@@ -157,6 +164,7 @@ def main(args):
       # HACK for HDR+.
       if im_input.dtype == np.uint16 and args.hdrp:
         log.info("Using HDR+ hack for uint16 input. Assuming input white level is 32767.")
+        ## was left in a comment in the original code. (Shahar)
         # im_input = im_input / 32767.0
         # im_input = im_input / 32767.0 /2
         # im_input = im_input / (1.0*2**16)
@@ -164,14 +172,16 @@ def main(args):
       else:
         im_input = skimage.img_as_float(im_input)
 
+      fname = os.path.splitext(os.path.basename(input_path))[0]
+
       # Make or Load lowres image
       if args.lowres_input is None:
         lowres_input = skimage.transform.resize(
-            im_input, [net_shape, net_shape], order = 0)
+          im_input, [net_shape, net_shape], order = 0)
+        # skimage.io.imsave(os.path.join(args.output, fname + "_lowres.jpg"), lowres_input) # for debug
       else:
         raise NotImplemented
 
-      fname = os.path.splitext(os.path.basename(input_path))[0]
       output_path = os.path.join(args.output, fname+".png")
       basedir = os.path.dirname(output_path)
 
@@ -179,8 +189,8 @@ def main(args):
       lowres_input = lowres_input[np.newaxis, :, :, :]
 
       feed_dict = {
-          t_fullres_input: im_input,
-          t_lowres_input: lowres_input
+        t_fullres_input: im_input,
+        t_lowres_input: lowres_input
       }
 
       out_ =  sess.run(output, feed_dict=feed_dict)
@@ -197,6 +207,7 @@ def main(args):
         coeffs_ = sess.run(coeffs, feed_dict=feed_dict)
         output_path = os.path.join(args.output, fname+"_coeffs.png")
         skimage.io.imsave(output_path, coeffs_)
+        # np.save(os.path.join(args.output, fname + "_grid.npy"), coeffs_) # for debug
         if len(ms) > 0:
           ms_ = sess.run(ms, feed_dict=feed_dict)
           for i, m in enumerate(ms_):
@@ -214,6 +225,7 @@ def main(args):
           for i, g in enumerate(guide_):
             output_path = os.path.join(args.output, fname+"_guide_{}.png".format(i))
             skimage.io.imsave(output_path, g)
+          # np.save(os.path.join(args.output, fname + "_guide.npy"), guide_) # for debug
 
 
 

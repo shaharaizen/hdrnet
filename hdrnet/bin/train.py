@@ -14,7 +14,6 @@
 # limitations under the License.
 
 """Train a model."""
-# comment
 import argparse
 import logging
 import numpy as np
@@ -22,12 +21,13 @@ import os
 import setproctitle
 import tensorflow as tf
 import time
-import sys
-sys.path.insert(0,"")
 import scipy.misc
 
-import hdrnet.metrics as metrics
+# fixing the path
+import sys
+sys.path.insert(0,"")
 
+import hdrnet.metrics as metrics
 import hdrnet.models as models
 import hdrnet.data_pipeline as dp
 
@@ -41,17 +41,19 @@ def log_hook(sess, log_fetches):
   """Message display at every log step."""
   data = sess.run(log_fetches)
   step = data['step']
-  loss = data['loss']
-  opt_loss = data["real loss"]
-  psnr = data['psnr']
-  opt_psnr = data['real psnr']
-  log.info('Step {} | loss = {:.4f} | opt_loss = {:.4f} | psnr = {:.1f} dB | opt_psnr = {:.1f} dB'.format(step, loss, opt_loss, psnr, opt_psnr))
+  average_loss = data['average loss']  # moving average
+  loss = data['real loss']
+  average_psnr = data['average psnr']  # moving average
+  psnr = data['real psnr']
+  log.info('Step {} | average loss = {:.4f} | loss = {:.4f} | average psnr = {:.1f} dB | psnr = {:.1f} dB'.format(step, average_loss, loss, average_psnr, psnr))
 
 
 def main(args, model_params, data_params):
+
   if not os.path.isdir(args.checkpoint_dir):
     os.makedirs(args.checkpoint_dir)
-  log_file = open(args.checkpoint_dir + '/log_file.txt', "a")
+
+  log_file = open(os.path.join(args.checkpoint_dir, 'log_file.txt'), "a")
   procname = os.path.basename(args.checkpoint_dir)
   setproctitle.setproctitle('hdrnet_{}'.format(procname))
 
@@ -100,7 +102,7 @@ def main(args, model_params, data_params):
       prediction = mdl.inference(
           train_samples['lowres_input'], train_samples['image_input'],
           model_params, is_training=True)
-    loss = metrics.total_loss(train_samples['image_output'], prediction)
+    loss = metrics.total_loss(train_samples['image_output'], prediction, args.magnitude_weight)
     psnr = metrics.psnr(train_samples['image_output'], prediction)
 
   # Evaluation graph
@@ -111,7 +113,7 @@ def main(args, model_params, data_params):
             eval_samples['lowres_input'], eval_samples['image_input'],
             model_params, is_training=False)
       eval_psnr = metrics.psnr(eval_samples['image_output'], eval_prediction)
-      eval_loss = metrics.total_loss(eval_samples['image_output'], eval_prediction)
+      eval_loss = metrics.total_loss(eval_samples['image_output'], eval_prediction, args.magnitude_weight)
 
   # Optimizer
   global_step = tf.contrib.framework.get_or_create_global_step()
@@ -155,9 +157,9 @@ def main(args, model_params, data_params):
 
   log_fetches = {
       "step": global_step,
-      "loss": loss,
+      "average loss": loss,
       "real loss": opt_loss,
-      "psnr": psnr,
+      "average psnr": psnr,
       "real psnr" : opt_psnr}
 
   # Train config
@@ -168,45 +170,45 @@ def main(args, model_params, data_params):
       save_summaries_secs=args.summary_interval,
       save_model_secs=args.checkpoint_interval)
 
-  i = args.loop_counter
+  loop_num = args.loop_counter
 
   # Train loop
   with sv.managed_session(config=config) as sess:
     sv.loop(args.log_interval, log_hook, (sess, log_fetches))
-    last_eval = time.time()
     while True:
       if sv.should_stop():
         log.info("stopping supervisor")
         break
       try:
-        print("loop=",i)
-        step, _, pred, train_samp, eval_pred, eval_samp, train_loss, train_psnr  = sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples, opt_loss, opt_psnr])
+        print("loop=", loop_num)
+        step, _, train_pred, train_samp, eval_pred, eval_samp, train_loss, train_psnr =\
+          sess.run([global_step, train_op, prediction, train_samples, eval_prediction, eval_samples, opt_loss, opt_psnr])
 
-        # saving the predictions
-        if i % args.pred_interval == 0:
+        # saving one image prediction at each pred_interval
+        if loop_num % args.pred_interval == 0:
           # saving train predictions
-          if not os.path.isdir(args.train_pred_dir):
-            os.makedirs(args.train_pred_dir)
+          if args.train_pred_dir is not None:
+            if not os.path.isdir(args.train_pred_dir):
+              os.makedirs(args.train_pred_dir)
 
-          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "before"  + '.jpg', train_samp['image_input'][0])
-          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "after" + '.jpg',train_samp['image_output'][0])
-          scipy.misc.imsave(args.train_pred_dir + '/' + str(i) + "network" + '.jpg',pred[0])
+            scipy.misc.imsave(os.path.join(args.train_pred_dir, str(loop_num) + "before"  + '.jpg'), train_samp['image_input'][0])
+            scipy.misc.imsave(os.path.join(args.train_pred_dir, str(loop_num) + "after" + '.jpg'), train_samp['image_output'][0])
+            scipy.misc.imsave(os.path.join(args.train_pred_dir, str(loop_num) + "network" + '.jpg'), train_pred[0])
 
-          # saving evaluation predisctions
-          if not os.path.isdir(args.eval_pred_dir):
-            os.makedirs(args.eval_pred_dir)
-          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "before" + '.jpg', eval_samp['image_input'][0])
-          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "after" + '.jpg',eval_samp['image_output'][0])
-          scipy.misc.imsave(args.eval_pred_dir + '/' + str(i) + "network" + '.jpg', eval_pred[0])
+          # saving evaluation predictions
+          if args.eval_pred_dir is not None:
+            if not os.path.isdir(args.eval_pred_dir):
+              os.makedirs(args.eval_pred_dir)
+            scipy.misc.imsave(os.path.join(args.eval_pred_dir, str(loop_num) + "before" + '.jpg'), eval_samp['image_input'][0])
+            scipy.misc.imsave(os.path.join(args.eval_pred_dir, str(loop_num) + "after" + '.jpg'), eval_samp['image_output'][0])
+            scipy.misc.imsave(os.path.join(args.eval_pred_dit, str(loop_num) + "network" + '.jpg'), eval_pred[0])
 
           # writing the train metrics to the log file
-          log_file.write('train psnr on step ' + str(i) + ': ' + str(train_psnr) + '\n')
-          log_file.write('train loss on step ' + str(i) + ': ' + str(train_loss) + '\n')
-        i+=1
+          log_file.write('train psnr on step ' + str(loop_num) + ': ' + str(train_psnr) + '\n')
+          log_file.write('train loss on step ' + str(loop_num) + ': ' + str(train_loss) + '\n')
 
-        since_eval = time.time()-last_eval
-
-        if args.eval_data_dir is not None and i % args.eval_interval == 0:# since_eval > args.eval_interval:
+        # evaluating performance
+        if args.eval_data_dir is not None and loop_num % args.eval_interval == 0:
           log.info("Evaluating on {} images at step {}".format(
               eval_data_pipeline.nsamples, step))
 
@@ -219,8 +221,8 @@ def main(args, model_params, data_params):
           l_ /= eval_data_pipeline.nsamples
 
           # writing the evaluation metrics to the log file
-          log_file.write('eval psnr on step ' + str(i) + ': ' + str(p_) + '\n')
-          log_file.write('eval loss on step ' + str(i) + ': ' + str(l_) + '\n')
+          log_file.write('eval psnr on step ' + str(loop_num) + ': ' + str(p_) + '\n')
+          log_file.write('eval loss on step ' + str(loop_num) + ': ' + str(l_) + '\n')
 
           sv.summary_writer.add_summary(tf.Summary(value=[
             tf.Summary.Value(tag="psnr/eval", simple_value=p_)]), global_step=step)
@@ -228,7 +230,7 @@ def main(args, model_params, data_params):
           log.info("  Evaluation PSNR = {:.1f} dB".format(p_))
           log.info("  Evaluation loss = {:.1f} dB".format(l_))
 
-          last_eval = time.time()
+        loop_num += 1
 
       except tf.errors.AbortedError:
         log.error("Aborted")
@@ -238,7 +240,7 @@ def main(args, model_params, data_params):
 
     # saving checkpoint and closing log file
     chkpt_path = os.path.join(args.checkpoint_dir, 'on_stop.ckpt')
-    log_file.write("number of steps: " + str(i))
+    log_file.write("number of steps: " + str(loop_num))
     log_file.close()
     log.info("Training complete, saving chkpt {}".format(chkpt_path))
     sv.saver.save(sess, chkpt_path)
@@ -257,7 +259,7 @@ if __name__ == '__main__':
   req_grp = parser.add_argument_group('required')
   req_grp.add_argument('checkpoint_dir', default=None, help='directory to save checkpoints to.')
   req_grp.add_argument('data_dir', default=None, help='input directory containing the training .tfrecords or images.')
-  req_grp.add_argument('--eval_data_dir', default=None, type=str, help='directory with the validation data.')
+  req_grp.add_argument('eval_data_dir', default=None, type=str, help='directory with the validation data.')
 
   # Training, logging and checkpointing parameters
   train_grp = parser.add_argument_group('training')
@@ -266,11 +268,11 @@ if __name__ == '__main__':
   train_grp.add_argument('--log_interval', type=int, default=1, help='interval between log messages (in s).')
   train_grp.add_argument('--summary_interval', type=int, default=120, help='interval between tensorboard summaries (in s)')
   train_grp.add_argument('--checkpoint_interval', type=int, default=600, help='interval between model checkpoints (in s)')
-  train_grp.add_argument('--eval_interval', type=int, default=3600, help='interval between evaluations (in number of batches)')
+  train_grp.add_argument('--eval_interval', type=int, default=1000, help='interval between evaluations (in number of batches)')
   train_grp.add_argument('--train_pred_dir', default=None, type=str, help='directory to save the train predictions.')
   train_grp.add_argument('--eval_pred_dir', default=None, type=str, help='directory to save the validation predictions.')
-  train_grp.add_argument('--loop_counter', default=0, type=int, help='number to initialize the loop counter.')
-  train_grp.add_argument('--pred_interval', default=20, type=int, help='interval of saving predictions.')
+  train_grp.add_argument('--loop_counter', default=0, type=int, help='number to initialize the loop counter. usefull when using already-trained checkpoint')
+  train_grp.add_argument('--pred_interval', default=100, type=int, help='interval of saving predictions.')
 
   # Debug and perf profiling
   debug_grp = parser.add_argument_group('debug and profiling')
@@ -295,12 +297,13 @@ if __name__ == '__main__':
   model_grp.add_argument('--model_name', default=models.__all__[0], type=str, help='classname of the model to use.', choices=models.__all__)
   model_grp.add_argument('--data_pipeline', default='ImageFilesDataPipeline', help='classname of the data pipeline to use.', choices=dp.__all__)
   model_grp.add_argument('--net_input_size', default=256, type=int, help="size of the network's lowres image input.")
-  model_grp.add_argument('--output_resolution', default=[512, 512], type=int, nargs=2, help='resolution of the output image.')
+  model_grp.add_argument('--output_resolution', default=[512, 512], type=int, nargs=2, help='resolution of the output image.')  # this is the resolution for the high-resolution path
   model_grp.add_argument('--batch_norm', dest='batch_norm', action='store_true', help='normalize batches. If False, uses the moving averages.')
   model_grp.add_argument('--nobatch_norm', dest='batch_norm', action='store_false')
   model_grp.add_argument('--channel_multiplier', default=1, type=int,  help='Factor to control net throughput (number of intermediate channels).')
   model_grp.add_argument('--guide_complexity', default=16, type=int,  help='Control complexity of the guide network.')
   model_grp.add_argument('--num_epochs', default=None, type=int, help='number of epochs')
+  model_grp.add_argument('--magnitude_weight', default=0, type=int, help='weight of the magnitude loss in the total loss')
 
   # Bilateral grid parameters
   model_grp.add_argument('--luma_bins', default=8, type=int,  help='Number of BGU bins for the luminance.')
