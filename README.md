@@ -10,6 +10,7 @@ Samuel W. Hasinoff
 Fredo Durand
 
 Maintained by Michael Gharbi (<gharbi@mit.edu>)
+Edited by Shahar Aizenbud
 
 Tested on Python 2.7, Ubuntu 14.0, gcc-4.8.
 
@@ -64,9 +65,10 @@ run:
 
 To train a model, run the following command:
 
-    ./hdrnet/bin/train.py <checkpoint_dir> <path/to_training_data/filelist.txt>
+    ./hdrnet/bin/train.py <checkpoint_dir> <path/to_training_data/filelist.txt> <path/to_evaluation_data/filelist.txt> 
 
 Look at `sample_data/identity/` for a typical structure of the training data folder.
+Also, pay attention to the optional parameters (in train.py)
 
 You can monitor the training process using Tensorboard:
 

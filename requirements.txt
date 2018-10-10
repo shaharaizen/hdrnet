@@ -1,0 +1,6 @@
+setproctitle
+numpy
+pyglib
+scikit_image
+python_gflags
+python_magic

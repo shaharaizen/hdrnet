@@ -20,7 +20,8 @@ from tensorflow.python.framework import ops
 
 __all__ = ['bilateral_slice']
 
-path = os.path.dirname(os.path.abspath(__file__))
+#path = os.path.dirname(os.path.abspath(__file__))
+path = "/hdrnet/hdrnet"
 path = tf.resource_loader.get_path_to_datafile(
     os.path.join(path, 'lib', 'hdrnet_ops.so'))
 
